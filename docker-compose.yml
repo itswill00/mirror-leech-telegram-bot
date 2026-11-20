@@ -1,6 +1,51 @@
 services:
   app:
     build: .
+    image: mltb
     command: bash start.sh
-    restart: on-failure
+    restart: unless-stopped
     network_mode: "host"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    volumes:
+      - ./config.py:/app/config.py
+      - ./qBittorrent:/app/qBittorrent
+      - ./sabnzbd:/app/sabnzbd
+      - ./rclone:/root/.config/rclone
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    shm_size: 256mb
+    mem_limit: 2500m
+    memswap_limit: 3500m
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.25"]
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ping:1}).ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mongo_data:
