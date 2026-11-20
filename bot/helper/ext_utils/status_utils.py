@@ -47,6 +47,23 @@ STATUSES = {
     "CK": MirrorStatus.STATUS_CHECK,
 }
 
+STATUS_ICONS = {
+    MirrorStatus.STATUS_DOWNLOAD: "📥",
+    MirrorStatus.STATUS_UPLOAD: "📤",
+    MirrorStatus.STATUS_CLONE: "🧬",
+    MirrorStatus.STATUS_QUEUEDL: "⏳",
+    MirrorStatus.STATUS_QUEUEUP: "⏳",
+    MirrorStatus.STATUS_PAUSED: "⏸️",
+    MirrorStatus.STATUS_ARCHIVE: "🗜️",
+    MirrorStatus.STATUS_EXTRACT: "📦",
+    MirrorStatus.STATUS_SPLIT: "✂️",
+    MirrorStatus.STATUS_CHECK: "🔎",
+    MirrorStatus.STATUS_SEED: "🌱",
+    MirrorStatus.STATUS_SAMVID: "🎞️",
+    MirrorStatus.STATUS_CONVERT: "🔄",
+    MirrorStatus.STATUS_FFMPEG: "🎛️",
+}
+
 
 async def get_task_by_gid(gid: str):
     async with task_dict_lock:
@@ -152,14 +169,14 @@ def speed_string_to_bytes(size_text: str):
 def get_progress_bar_string(pct):
     pct = float(pct.strip("%"))
     p = min(max(pct, 0), 100)
-    cFull = int(p // 8)
-    p_str = "■" * cFull
-    p_str += "□" * (12 - cFull)
+    cFull = int(p // 10)
+    p_str = "▰" * cFull
+    p_str += "▱" * (10 - cFull)
     return f"[{p_str}]"
 
 
 async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=1):
-    msg = ""
+    msg = "<h1>📊 MirrorX Status</h1><hr/>"
     button = None
 
     tasks = await get_specific_tasks(status, sid if is_user else None)
@@ -184,19 +201,21 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             tstatus = await task.status()
         else:
             tstatus = task.status()
+        status_icon = STATUS_ICONS.get(tstatus, "⚙️")
+        task_heading = f"{index + start_position}. {status_icon} {tstatus}"
         if task.listener.is_super_chat:
-            msg += f"<b>{index + start_position}.<a href='{task.listener.message.link}'>{tstatus}</a>: </b>"
+            msg += f"<h3><a href='{task.listener.message.link}'>{task_heading}</a></h3>"
         else:
-            msg += f"<b>{index + start_position}.{tstatus}: </b>"
-        msg += f"<code>{escape(f'{task.name()}')}</code>"
+            msg += f"<h3>{task_heading}</h3>"
+        msg += f"<p><code>{escape(f'{task.name()}')}</code></p>"
         if task.listener.subname:
-            msg += f"<br><i>{task.listener.subname}</i>"
+            msg += f"<p><i>{escape(task.listener.subname)}</i></p>"
         if (
             tstatus not in [MirrorStatus.STATUS_SEED, MirrorStatus.STATUS_QUEUEUP]
             and task.listener.progress
         ):
             progress = task.progress()
-            msg += f"<br>{get_progress_bar_string(progress)} {progress}"
+            msg += f"<p><code>{get_progress_bar_string(progress)} {progress}</code></p>"
             if task.listener.subname:
                 subsize = f"/{get_readable_file_size(task.listener.subsize)}"
                 ac = len(task.listener.files_to_proceed)
@@ -204,30 +223,28 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             else:
                 subsize = ""
                 count = ""
-            msg += f"<br><b>Processed:</b> {task.processed_bytes()}{subsize}"
+            msg += f"<p>📦 <b>Processed:</b> {task.processed_bytes()}{subsize}</p>"
             if count:
-                msg += f"<br><b>Count:</b> {count}"
-            msg += f"<br><b>Size:</b> {task.size()}"
-            msg += f"<br><b>Speed:</b> {task.speed()}"
-            msg += f"<br><b>ETA:</b> {task.eta()}"
+                msg += f"<p>🔢 <b>Count:</b> {count}</p>"
+            msg += f"<p>📏 <b>Size:</b> {task.size()}  •  ⚡ <b>Speed:</b> {task.speed()}</p>"
+            msg += f"<p>⏳ <b>ETA:</b> {task.eta()}</p>"
             if (
                 tstatus == MirrorStatus.STATUS_DOWNLOAD
                 and task.listener.is_torrent
                 or task.listener.is_qbit
             ):
                 try:
-                    msg += f"<br><b>Seeders:</b> {task.seeders_num()} | <b>Leechers:</b> {task.leechers_num()}"
+                    msg += f"<p>🌱 <b>Seeders:</b> {task.seeders_num()}  •  🧲 <b>Leechers:</b> {task.leechers_num()}</p>"
                 except:
                     pass
         elif tstatus == MirrorStatus.STATUS_SEED:
-            msg += f"<br><b>Size: </b>{task.size()}"
-            msg += f"<br><b>Speed: </b>{task.seed_speed()}"
-            msg += f"<br><b>Uploaded: </b>{task.uploaded_bytes()}"
-            msg += f"<br><b>Ratio: </b>{task.ratio()}"
-            msg += f" | <b>Time: </b>{task.seeding_time()}"
+            msg += f"<p>📏 <b>Size:</b> {task.size()}</p>"
+            msg += f"<p>⚡ <b>Speed:</b> {task.seed_speed()}</p>"
+            msg += f"<p>📤 <b>Uploaded:</b> {task.uploaded_bytes()}</p>"
+            msg += f"<p>⚖️ <b>Ratio:</b> {task.ratio()}  •  ⏱️ <b>Time:</b> {task.seeding_time()}</p>"
         else:
-            msg += f"<br><b>Size: </b>{task.size()}"
-        msg += f"<br><b>Fn: </b><tg-button type='callback_data' data='cancel canconf {task.gid()}' style='danger'>Cancel</tg-button>"
+            msg += f"<p>📏 <b>Size:</b> {task.size()}</p>"
+        msg += f"<p>🎛️ <b>Actions:</b> <tg-button type='callback_data' data='cancel canconf {task.gid()}' style='danger'>Cancel</tg-button>"
         if (
             task.tool == "aria2"
             and task.listener.is_torrent
@@ -241,30 +258,29 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             MirrorStatus.STATUS_PAUSED,
             MirrorStatus.STATUS_QUEUEDL,
         ]:
-            msg += f" | <tg-button type='callback_data' data='sel select {task.gid()}' style='primary'>Select</tg-button>"
+            msg += f" <tg-button type='callback_data' data='sel select {task.gid()}' style='primary'>Select Files</tg-button>"
         if tstatus != MirrorStatus.STATUS_UPLOAD and (
             Config.QUEUE_ALL or Config.QUEUE_DOWNLOAD or Config.QUEUE_UPLOAD
         ):
             if tstatus == MirrorStatus.STATUS_QUEUEDL:
-                msg += f" | <tg-button type='callback_data' data='force run {task.gid()}' style='success'>ForceRun</tg-button>"
-                msg += f" | <tg-button type='callback_data' data='force fd {task.gid()}' style='success'>ForceDl</tg-button>"
+                msg += f" <tg-button type='callback_data' data='force run {task.gid()}' style='success'>Force Run</tg-button>"
+                msg += f" <tg-button type='callback_data' data='force fd {task.gid()}' style='success'>Force Download</tg-button>"
                 if not task.listener.force_upload:
-                    msg += f" | <tg-button type='callback_data' data='force fu {task.gid()}' style='success'>ForceUp</tg-button>"
+                    msg += f" <tg-button type='callback_data' data='force fu {task.gid()}' style='success'>Force Upload</tg-button>"
             elif not task.listener.force_upload and (
                 tstatus == MirrorStatus.STATUS_DOWNLOAD or not task.listener.force_run
             ):
-                msg += f" | <tg-button type='callback_data' data='force fu {task.gid()}' style='success'>ForceUp</tg-button>"
-        msg += "<br><br>"
-    if len(msg) == 0:
+                msg += f" <tg-button type='callback_data' data='force fu {task.gid()}' style='success'>Force Upload</tg-button>"
+        msg += "</p><hr/>"
+    if msg == "<h1>📊 MirrorX Status</h1><hr/>":
         if status == "All":
             return None, None
-        else:
-            msg = f"No Active {status} Tasks!<br><br>"
+        msg += f"<p>💤 <b>No Active {escape(status)} Tasks</b></p>"
     buttons = ButtonMaker()
     if not is_user:
         buttons.data_button("📜", f"status {sid} ov", position="header")
     if len(tasks) > STATUS_LIMIT:
-        msg += f"<b>Page:</b> {page_no}/{pages} | <b>Tasks:</b> {tasks_no} | <b>Step:</b> {page_step}<br>"
+        msg += f"<p>📄 <b>Page:</b> {page_no}/{pages}  •  📋 <b>Tasks:</b> {tasks_no}  •  🔁 <b>Step:</b> {page_step}</p>"
         buttons.data_button("<<", f"status {sid} pre", position="header")
         buttons.data_button(">>", f"status {sid} nex", position="header")
         if tasks_no > 30:
@@ -276,6 +292,7 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
                 buttons.data_button(label, f"status {sid} st {status_value}")
     buttons.data_button("♻️", f"status {sid} ref", position="header", style="green")
     button = buttons.build_menu(8)
-    msg += f"<b>CPU:</b> {cpu_percent()}% | <b>FREE:</b> {get_readable_file_size(disk_usage(DOWNLOAD_DIR).free)}"
-    msg += f"<br><b>RAM:</b> {virtual_memory().percent}% | <b>UPTIME:</b> {get_readable_time(time() - bot_start_time)}"
+    msg += "<hr/><footer>"
+    msg += f"🖥️ CPU: {cpu_percent()}%  •  💾 Free: {get_readable_file_size(disk_usage(DOWNLOAD_DIR).free)}  •  🧠 RAM: {virtual_memory().percent}%  •  ⏱️ Uptime: {get_readable_time(time() - bot_start_time)}"
+    msg += "</footer>"
     return InputRichMessage(html=msg), button
